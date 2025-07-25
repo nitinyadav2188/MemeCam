@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemeCam</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for UI and meme text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- face-api.js for emotion detection -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <!-- html2canvas for downloading the meme -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* Custom styles for the application */
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Classic meme font style with a black outline */
+        .meme-text {
+            font-family: 'Anton', sans-serif;
+            font-size: 2.5rem;
+            color: white;
+            text-transform: uppercase;
+            text-shadow: 
+                -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+                -3px 0 0 #000, 3px 0 0 #000, 0 -3px 0 #000, 0 3px 0 #000;
+            line-height: 1.1;
+            padding: 0 10px;
+        }
+
+        /* Responsive font size for smaller screens */
+        @media (max-width: 640px) { .meme-text { font-size: 1.75rem; } }
+
+        /* Draggable sticker style */
+        .sticker {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            font-size: 4rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Loading spinner animation */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Transition for showing/hiding elements */
+        .fade-in { animation: fadeIn 0.5s ease; }
+        .fade-out { animation: fadeOut 0.5s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col min-h-screen">
+
+    <!-- Landing Page Section -->
+    <div id="landing-page" class="flex-grow flex flex-col items-center justify-center text-center p-6">
+        <h1 class="text-5xl md:text-7xl font-extrabold text-white">
+            Welcome to <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">MemeCam</span>
+        </h1>
+        <p class="mt-4 max-w-2xl text-lg md:text-xl text-gray-300">
+            Turn your face into a viral meme instantly. Our AI detects your mood to generate hilarious captions, stories, roasts, and more. Ready to laugh?
+        </p>
+        <button id="launch-btn" class="mt-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-8 rounded-full text-xl transition-transform transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+            <span id="launch-btn-text">🚀 Launch MemeCam</span>
+        </button>
+    </div>
+
+    <!-- Main App Container (Initially Hidden) -->
+    <div id="app-container" class="hidden flex-grow w-full max-w-6xl mx-auto p-4 md:p-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Column: Camera and Meme Preview -->
+            <div class="flex flex-col items-center space-y-4">
+                <div id="meme-container" class="relative w-full max-w-md bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div id="loader" class="hidden flex-col items-center justify-center bg-black bg-opacity-70 absolute inset-0 z-50">
+                        <div class="spinner"></div>
+                        <p id="loader-text" class="mt-4 text-lg">Loading models...</p>
+                    </div>
+                    <!-- New Capture Overlay -->
+                    <div id="capture-overlay" class="hidden absolute inset-0 bg-black bg-opacity-50 flex-col items-center justify-center text-white font-bold z-40">
+                        <p id="countdown-text" class="text-8xl" style="font-family: 'Anton', sans-serif; text-shadow: 0 0 15px rgba(0,0,0,0.7);"></p>
+                    </div>
+                    <video id="webcam" class="w-full h-auto" autoplay muted playsinline></video>
+                    <img id="photo" class="hidden w-full h-auto" />
+                    <div id="top-text" class="meme-text absolute top-2 w-full text-center pointer-events-none"></div>
+                    <div id="bottom-text" class="meme-text absolute bottom-2 w-full text-center pointer-events-none"></div>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-3">
+                    <button id="capture-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">📸 Capture Photo</button>
+                    <button id="analyze-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105 hidden">🧠 Analyze Face</button>
+                    <button id="reset-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105 hidden">🔄 Retake</button>
+                </div>
+            </div>
+
+            <!-- Right Column: Controls and Results -->
+            <div id="controls-panel" class="flex flex-col space-y-6 hidden">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">✍️ Edit Captions</h2>
+                    <div class="space-y-3">
+                        <input type="text" id="top-text-input" placeholder="Top Text" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="bottom-text-input" placeholder="Bottom Text" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">✨ AI Super Modes</h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="roast-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">🔥 Roast Me</button>
+                        <button id="voice-btn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">🎤 Voice Caption</button>
+                        <button id="alter-ego-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">🦸‍♀️ My Alter Ego</button>
+                        <button id="story-btn" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg">📜 Generate Story</button>
+                    </div>
+                    <p id="voice-status" class="text-sm text-gray-400 mt-2 h-4"></p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">🤡 Add Stickers</h2>
+                    <div id="sticker-tray" class="flex gap-4 text-4xl cursor-pointer">
+                        <span>😂</span><span>💀</span><span>😭</span><span>🤯</span><span>🤡</span>
+                    </div>
+                </div>
+
+                <div class="space-y-4 bg-gray-800 p-4 rounded-lg">
+                    <h2 class="text-xl font-semibold">🤖 AI Results</h2>
+                    <div id="results-content" class="text-gray-300 space-y-3">
+                        <p>Analyzed Emotion: <strong id="emotion-result" class="text-yellow-400">...</strong></p>
+                        <p>🔊 TikTok Sound: <strong id="sound-result" class="text-cyan-400">...</strong></p>
+                        <p>  Cringe Quote: <em id="quote-result" class="text-pink-400">...</em></p>
+                        <div id="alter-ego-result-container" class="hidden pt-3 border-t border-gray-700"></div>
+                        <div id="story-result-container" class="hidden pt-3 border-t border-gray-700"></div>
+                    </div>
+                </div>
+
+                <!-- New Stylish Quotes Section -->
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">💡 Meme Wisdom</h2>
+                    <div class="space-y-4 bg-gray-800 p-4 rounded-lg border-l-4 border-purple-500">
+                        <blockquote class="text-gray-300 italic">
+                            <p>"The greatest glory in living lies not in never falling, but in rising every time we fall... and then making a meme about it."</p>
+                            <footer class="text-right text-sm text-gray-500 mt-1">- Probably not Nelson Mandela</footer>
+                        </blockquote>
+                        <blockquote class="text-gray-300 italic border-t border-gray-700 pt-4">
+                            <p>"In the future, everyone will be world-famous for 15 minutes... on TikTok, with a weird sound."</p>
+                            <footer class="text-right text-sm text-gray-500 mt-1">- Andy Warhol (probably)</footer>
+                        </blockquote>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">💾 Download & Share</h2>
+                    <div class="space-y-3">
+                        <button id="download-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg">Download Meme</button>
+                        <div class="grid grid-cols-2 gap-3">
+                             <button id="twitter-share-btn" class="w-full bg-[#1DA1F2] hover:bg-[#1a91da] text-white font-bold py-2 px-4 rounded-lg">Share on Twitter</button>
+                             <button id="instagram-share-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg">Share on Instagram</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer id="footer" class="bg-gray-800 text-gray-400 p-6 text-center mt-auto">
+        <p>Nitin Yadav</p>
+        <div class="flex justify-center space-x-4 mt-2">
+            <a href="https://twitter.com/nitinyadav2188" target="_blank" rel="noopener noreferrer" class="hover:text-white">Twitter</a>
+            <span>&bull;</span>
+            <a href="https://www.instagram.com/nitin_ydv_060405" target="_blank" rel="noopener noreferrer" class="hover:text-white">Instagram</a>
+        </div>
+    </footer>
+
+    <!-- Instagram Share Modal -->
+    <div id="instagram-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-sm w-full text-center shadow-xl fade-in">
+            <h2 class="text-2xl font-bold mb-4">Share to Instagram</h2>
+            <p class="mb-4">Instagram sharing is a 2-step process:</p>
+            <ol class="text-left space-y-3 mb-6">
+                <li><strong>1. Download:</strong> Your meme download has started. Check your downloads folder.</li>
+                <li><strong>2. Post:</strong> We'll copy a caption for you. Open Instagram and create a new post with your downloaded meme.</li>
+            </ol>
+            <button id="copy-caption-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg mb-3">Copy Caption & Open Instagram</button>
+            <button id="close-modal-btn" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Close</button>
+        </div>
+    </div>
+    
+    <!-- Custom Notification/Toast -->
+    <div id="notification" class="hidden fixed top-5 right-5 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg z-50"></div>
+
+    <script>
+        // --- DOM Element References ---
+        const landingPage = document.getElementById('landing-page');
+        const launchBtn = document.getElementById('launch-btn');
+        const launchBtnText = document.getElementById('launch-btn-text');
+        const appContainer = document.getElementById('app-container');
+        const footer = document.getElementById('footer');
+        
+        const webcamElement = document.getElementById('webcam');
+        const photoElement = document.getElementById('photo');
+        const memeContainer = document.getElementById('meme-container');
+        const captureBtn = document.getElementById('capture-btn');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const controlsPanel = document.getElementById('controls-panel');
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loader-text');
+        
+        const topTextInput = document.getElementById('top-text-input');
+        const bottomTextInput = document.getElementById('bottom-text-input');
+        const topTextOverlay = document.getElementById('top-text');
+        const bottomTextOverlay = document.getElementById('bottom-text');
+
+        const roastBtn = document.getElementById('roast-btn');
+        const voiceBtn = document.getElementById('voice-btn');
+        const voiceStatus = document.getElementById('voice-status');
+        const alterEgoBtn = document.getElementById('alter-ego-btn');
+        const storyBtn = document.getElementById('story-btn');
+
+        const stickerTray = document.getElementById('sticker-tray');
+        
+        const emotionResult = document.getElementById('emotion-result');
+        const soundResult = document.getElementById('sound-result');
+        const quoteResult = document.getElementById('quote-result');
+        const alterEgoResultContainer = document.getElementById('alter-ego-result-container');
+        const storyResultContainer = document.getElementById('story-result-container');
+        const downloadBtn = document.getElementById('download-btn');
+        const twitterShareBtn = document.getElementById('twitter-share-btn');
+        const instagramShareBtn = document.getElementById('instagram-share-btn');
+        const instagramModal = document.getElementById('instagram-modal');
+        const copyCaptionBtn = document.getElementById('copy-caption-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const notification = document.getElementById('notification');
+
+        // --- State Variables ---
+        let capturedImage = null;
+        let modelsLoaded = false;
+        let appInitialized = false;
+        let currentEmotion = 'neutral';
+
+        // --- Core Functions ---
+        
+        /**
+         * Shows a custom notification message.
+         * @param {string} message - The message to display.
+         * @param {number} duration - How long to display the message in ms.
+         */
+        function showNotification(message, duration = 3000) {
+            notification.textContent = message;
+            notification.classList.remove('hidden', 'fade-out');
+            notification.classList.add('fade-in');
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.classList.add('hidden'), 500);
+            }, duration);
+        }
+
+        /**
+         * Initializes the app after models are loaded.
+         */
+        async function initializeApp() {
+            if (appInitialized || !modelsLoaded) return;
+            appInitialized = true;
+            
+            landingPage.classList.add('fade-out');
+            setTimeout(() => {
+                landingPage.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                appContainer.classList.add('fade-in');
+            }, 500);
+
+            await setupWebcam();
+        }
+
+        function showLoader(text) {
+            loaderText.textContent = text;
+            loader.classList.remove('hidden');
+            loader.classList.add('flex');
+        }
+
+        function hideLoader() {
+            loader.classList.add('hidden');
+            loader.classList.remove('flex');
+        }
+
+        async function setupWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                webcamElement.srcObject = stream;
+            } catch (err) {
+                console.error("Error accessing webcam:", err);
+                showNotification("Could not access webcam. Please grant permission.");
+            }
+        }
+
+        /**
+         * Pre-loads models on page load and updates the launch button.
+         */
+        async function loadModels() {
+            if (modelsLoaded) return;
+            launchBtn.disabled = true;
+            launchBtnText.textContent = "Loading AI...";
+
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+            try {
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                modelsLoaded = true;
+                console.log("Models loaded successfully");
+                launchBtn.disabled = false;
+                launchBtnText.textContent = "🚀 Launch MemeCam";
+            } catch (error) {
+                console.error("Error loading models:", error);
+                launchBtnText.textContent = "AI Failed to Load 😭";
+                showNotification("Failed to load AI models. Please refresh the page.");
+            }
+        }
+
+        /**
+         * Displays a countdown and captures a photo from the webcam.
+         */
+        function capturePhoto() {
+            const countdownText = document.getElementById('countdown-text');
+            const captureOverlay = document.getElementById('capture-overlay');
+
+            if (captureBtn.disabled) return;
+            captureBtn.disabled = true;
+
+            let countdown = 3;
+            captureOverlay.classList.remove('hidden');
+            captureOverlay.classList.add('flex');
+            countdownText.textContent = countdown;
+
+            const interval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    countdownText.textContent = countdown;
+                } else {
+                    countdownText.textContent = 'SMILE!';
+                    clearInterval(interval);
+                    
+                    setTimeout(() => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = webcamElement.videoWidth;
+                        canvas.height = webcamElement.videoHeight;
+                        if (!canvas.width || !canvas.height) {
+                            showNotification("Webcam not ready. Please wait a moment.");
+                            captureOverlay.classList.add('hidden');
+                            captureBtn.disabled = false;
+                            return;
+                        }
+                        canvas.getContext('2d').drawImage(webcamElement, 0, 0, canvas.width, canvas.height);
+                        capturedImage = canvas.toDataURL('image/jpeg');
+                        
+                        photoElement.src = capturedImage;
+                        photoElement.classList.remove('hidden');
+                        webcamElement.classList.add('hidden');
+                        if (webcamElement.srcObject) {
+                            webcamElement.srcObject.getTracks().forEach(track => track.stop());
+                        }
+
+                        captureBtn.classList.add('hidden');
+                        analyzeBtn.classList.remove('hidden');
+                        resetBtn.classList.remove('hidden');
+
+                        captureOverlay.classList.add('hidden');
+                        captureBtn.disabled = false;
+                    }, 500);
+                }
+            }, 1000);
+        }
+        
+        function resetApp() {
+            const captureOverlay = document.getElementById('capture-overlay');
+            captureOverlay.classList.add('hidden');
+            captureBtn.disabled = false;
+
+            setupWebcam();
+            photoElement.classList.add('hidden');
+            webcamElement.classList.remove('hidden');
+            
+            captureBtn.classList.remove('hidden');
+            analyzeBtn.classList.add('hidden');
+            resetBtn.classList.add('hidden');
+            controlsPanel.classList.add('hidden');
+            
+            topTextInput.value = '';
+            bottomTextInput.value = '';
+            topTextOverlay.textContent = '';
+            bottomTextOverlay.textContent = '';
+            capturedImage = null;
+            
+            alterEgoResultContainer.classList.add('hidden');
+            storyResultContainer.classList.add('hidden');
+
+            memeContainer.querySelectorAll('.sticker').forEach(s => s.remove());
+        }
+
+        async function analyzeFace() {
+            if (!capturedImage || !modelsLoaded) {
+                showNotification("Please capture a photo first.");
+                return;
+            }
+            showLoader('Analyzing your face...');
+            
+            const detections = await faceapi.detectSingleFace(photoElement, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+            hideLoader();
+
+            if (detections) {
+                const expressions = detections.expressions;
+                currentEmotion = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
+                emotionResult.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+                
+                controlsPanel.classList.remove('hidden');
+                controlsPanel.classList.add('fade-in');
+                fetchAIContent(currentEmotion);
+            } else {
+                showNotification("Could not detect a face. Please try again.");
+                emotionResult.textContent = "No face detected!";
+            }
+        }
+        
+        async function generateWithGemini(mode, emotion) {
+            // **FIX**: Inserted the user's Gemini API Key.
+            const apiKey = "AIzaSyBdhnbuDvWJ87xAMQDGKyUsoXdzhG7gZi4"; 
+            
+            if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
+                showNotification("API Key is missing. Please add it to the code.");
+                return null;
+            }
+
+            let prompt = '';
+            switch(mode) {
+                case 'meme':
+                    prompt = `Generate a funny meme caption for a person looking ${emotion}. Your response MUST be a valid JSON object with "top" and "bottom" string keys. Do not add any other text or markdown. Example: {"top": "My face when", "bottom": "the code works first try"}`;
+                    break;
+                case 'roast':
+                    prompt = `Generate a light-hearted roast for a person looking ${emotion}. Your response MUST be a valid JSON object with "top" and "bottom" string keys. Do not add any other text or markdown. Example: {"top": "You look like", "bottom": "you ask Siri to set a timer for 1 minute"}`;
+                    break;
+                case 'alterEgo':
+                    prompt = `A person looks ${emotion}. Invent a funny alter ego for them. Your response MUST be a valid JSON object with "name", "power", and "catchphrase" string keys. Do not add any other text or markdown.`;
+                    break;
+                case 'cringe':
+                    prompt = `Generate a super cringey, short inspirational quote.`;
+                    break;
+                case 'sound':
+                    prompt = `Suggest a TikTok sound for a meme where someone feels ${emotion}. Give only the song name and artist.`;
+                    break;
+                case 'story':
+                    prompt = `Based on a photo where a person looks ${emotion}, write a funny, one-paragraph fictional story about what just happened to them.`;
+                    break;
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+                }
+                const result = await response.json();
+                
+                if (result.error) {
+                    console.error('Gemini API Error:', result.error.message);
+                    throw new Error(result.error.message);
+                }
+
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                
+                console.error("Invalid AI response structure:", result);
+                throw new Error("Received an unexpected response format from the AI.");
+
+            } catch (error) {
+                console.error(`Error with Gemini API for mode ${mode}:`, error);
+                showNotification(`AI Error: ${error.message}. Please try again.`);
+                return null; // Return null on failure
+            }
+        }
+        
+        async function fetchAIContent(emotion) {
+            showLoader('Generating AI magic...');
+            
+            // Reset fields
+            soundResult.textContent = '...';
+            quoteResult.textContent = '...';
+            topTextInput.value = '';
+            bottomTextInput.value = '';
+            updateMemeText();
+
+            const [memeRes, soundRes, quoteRes] = await Promise.all([
+                generateWithGemini('meme', emotion),
+                generateWithGemini('sound', emotion),
+                generateWithGemini('cringe', emotion)
+            ]);
+
+            if (memeRes) {
+                try {
+                    const cleanedResponse = memeRes.replace(/```json|```/g, '').trim();
+                    const memeJson = JSON.parse(cleanedResponse);
+                    topTextInput.value = memeJson.top || "AI gave up";
+                    bottomTextInput.value = memeJson.bottom || "on this one";
+                    updateMemeText();
+                } catch (e) {
+                    console.error("Failed to parse meme JSON:", memeRes, e);
+                    showNotification("AI returned a weird format for the meme.");
+                }
+            }
+            
+            if(soundRes) soundResult.textContent = soundRes;
+            if(quoteRes) quoteResult.textContent = quoteRes;
+
+            hideLoader();
+        }
+
+        async function fetchRoast() {
+            showLoader('Heating up the roast...');
+            const roastRes = await generateWithGemini('roast', currentEmotion);
+            if (roastRes) {
+                try {
+                    const cleanedResponse = roastRes.replace(/```json|```/g, '').trim();
+                    const memeJson = JSON.parse(cleanedResponse);
+                    topTextInput.value = memeJson.top || "This roast";
+                    bottomTextInput.value = memeJson.bottom || "is undercooked";
+                    updateMemeText();
+                } catch (e) {
+                    console.error("Failed to parse roast JSON:", roastRes, e);
+                    showNotification("AI returned a weird format for the roast.");
+                }
+            }
+            hideLoader();
+        }
+
+        async function fetchAlterEgo() {
+            showLoader('Creating your alter ego...');
+            const res = await generateWithGemini('alterEgo', currentEmotion);
+            if (res) {
+                try {
+                    const cleanedResponse = res.replace(/```json|```/g, '').trim();
+                    const data = JSON.parse(cleanedResponse);
+                    alterEgoResultContainer.innerHTML = `<h3 class="text-lg font-semibold text-indigo-400">Your Alter Ego</h3><p><strong>Name:</strong> ${data.name}</p><p><strong>Power:</strong> ${data.power}</p><p><strong>Catchphrase:</strong> <em>"${data.catchphrase}"</em></p>`;
+                    alterEgoResultContainer.classList.remove('hidden');
+                } catch (e) {
+                    console.error("Failed to parse Alter Ego JSON:", res, e);
+                    showNotification("AI returned a weird format for the alter ego.");
+                }
+            }
+            hideLoader();
+        }
+
+        async function fetchStory() {
+            showLoader('Writing your story...');
+            const story = await generateWithGemini('story', currentEmotion);
+            if (story) {
+                storyResultContainer.innerHTML = `<h3 class="text-lg font-semibold text-amber-400">Your Story</h3><p class="italic">${story}</p>`;
+                storyResultContainer.classList.remove('hidden');
+            }
+            hideLoader();
+        }
+
+        function updateMemeText() {
+            topTextOverlay.textContent = topTextInput.value;
+            bottomTextOverlay.textContent = bottomTextInput.value;
+        }
+
+        function downloadMeme() {
+            showLoader('Preparing download...');
+            return new Promise((resolve, reject) => {
+                html2canvas(memeContainer, { useCORS: true, allowTaint: true })
+                .then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'memecam.jpg';
+                    link.href = canvas.toDataURL('image/jpeg', 0.9);
+                    link.click();
+                    hideLoader();
+                    resolve();
+                }).catch(err => {
+                    console.error("html2canvas error:", err);
+                    showNotification("Sorry, could not create download.");
+                    hideLoader();
+                    reject(err);
+                });
+            });
+        }
+
+        function shareOnTwitter() {
+            const tweetText = `Check out this awesome meme I made with MemeCam! 🤖📸 Created by @nitinyadav2188. #MemeCamAI`;
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+            window.open(twitterUrl, '_blank');
+        }
+
+        async function shareOnInstagram() {
+            showNotification("Starting download for Instagram...");
+            try {
+                await downloadMeme();
+                instagramModal.classList.remove('hidden');
+            } catch (error) {
+                showNotification("Download failed. Cannot proceed with Instagram share.");
+            }
+        }
+
+        function copyInstagramCaption() {
+            const caption = `Just made this with MemeCam! 😂 App created by @nitin_ydv_060405 on Instagram! #MemeCam #AI`;
+            const textArea = document.createElement("textarea");
+            textArea.value = caption;
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showNotification("Caption copied! Opening Instagram...");
+                setTimeout(() => window.open('https://instagram.com', '_blank'), 500);
+            } catch (err) {
+                showNotification('Failed to copy caption.');
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        // --- Event Listeners ---
+        
+        window.addEventListener('load', loadModels); // Pre-load models
+        launchBtn.addEventListener('click', initializeApp);
+        captureBtn.addEventListener('click', capturePhoto);
+        resetBtn.addEventListener('click', resetApp);
+        analyzeBtn.addEventListener('click', analyzeFace);
+        downloadBtn.addEventListener('click', downloadMeme);
+        twitterShareBtn.addEventListener('click', shareOnTwitter);
+        instagramShareBtn.addEventListener('click', shareOnInstagram);
+        closeModalBtn.addEventListener('click', () => instagramModal.classList.add('hidden'));
+        copyCaptionBtn.addEventListener('click', copyInstagramCaption);
+        
+        topTextInput.addEventListener('input', updateMemeText);
+        bottomTextInput.addEventListener('input', updateMemeText);
+
+        roastBtn.addEventListener('click', fetchRoast);
+        alterEgoBtn.addEventListener('click', fetchAlterEgo);
+        storyBtn.addEventListener('click', fetchStory);
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            voiceBtn.addEventListener('click', () => {
+                recognition.start();
+                voiceStatus.textContent = "Listening...";
+            });
+            recognition.onresult = (event) => {
+                bottomTextInput.value = event.results[0][0].transcript;
+                updateMemeText();
+            };
+            recognition.onspeechend = () => {
+                recognition.stop();
+                voiceStatus.textContent = "Processing...";
+            };
+            recognition.onend = () => {
+                 setTimeout(() => { voiceStatus.textContent = ""; }, 2000);
+            };
+            recognition.onerror = (event) => {
+                voiceStatus.textContent = `Error: ${event.error}`;
+            };
+        } else {
+            voiceBtn.disabled = true;
+            voiceBtn.textContent = "🎤 Voice (Not Supported)";
+            voiceStatus.textContent = "Your browser doesn't support voice recognition.";
+        }
+
+        stickerTray.addEventListener('click', (e) => {
+            if (e.target.tagName === 'SPAN') {
+                const sticker = document.createElement('div');
+                sticker.classList.add('sticker');
+                sticker.textContent = e.target.textContent;
+                sticker.style.left = '40%';
+                sticker.style.top = '40%';
+                memeContainer.appendChild(sticker);
+                makeDraggable(sticker);
+            }
+        });
+
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            element.onmousedown = dragMouseDown;
+            element.ontouchstart = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e.preventDefault();
+                e = e.type === 'touchstart' ? e.touches[0] : e;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                document.ontouchend = closeDragElement;
+                document.ontouchmove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                e = e.type === 'touchmove' ? e.touches[0] : e;
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+                document.ontouchend = null;
+                document.ontouchmove = null;
+            }
+        }
+
+    </script>
+</body>
+</html>
