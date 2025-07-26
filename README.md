@@ -1,4 +1,4 @@
-# 😂 MemeCam: The AI-Powered Meme Generator
+# 😂 MemeCam: Your face is the punchline
 
 Welcome to **MemeCam**, the ultimate web app that turns your facial expressions into **hilarious, shareable memes** in seconds!
 
@@ -66,6 +66,5 @@ Then:
 Created by **Nitin Yadav**
 
 - Twitter: @nitinyadav2188
-- Instagram: @nitin_ydv_060405
 
 > MemeCam – Because your face deserves to be meme-worthy 😎
