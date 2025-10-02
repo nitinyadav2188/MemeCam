@@ -61,6 +61,24 @@ Then:
 - Google Gemini API
 - html2canvas
 
+##  How to Contribute?
+
+1. Fork the repo
+2. Clone it to your local system
+3. Create a new branch: `git checkout -b patch-1`
+4. Make your changes
+5. Push: `git push origin patch-1`
+6. Create a Pull Request!
+
+##  Labels Used
+- `good first issue`
+- `documentation`
+- `hacktoberfest`
+
+##  Contributions Welcome!
+
+Make sure you follow [Hacktoberfest rules](https://hacktoberfest.com/participation) and submit **quality PRs**.
+
 ## 👤 Credits
 
 Created by **Nitin Yadav**
@@ -68,3 +86,4 @@ Created by **Nitin Yadav**
 - Twitter: @nitinyadav2188
 
 > MemeCam – Because your face deserves to be meme-worthy 😎
+
