@@ -1076,13 +1076,17 @@
             memeContainer.querySelectorAll('.sticker').forEach(s => s.remove());
         }
 
-        async function analyzeFace() {
+        function analyzeFace() {
             if (!capturedImage || !modelsLoaded) {
                 showNotification("Please capture a photo first.");
                 return;
             }
             showLoader('Analyzing your face...');
-            
+            // Use a timeout to allow the UI to update before the heavy task
+            setTimeout(runAnalysis, 100); 
+        }
+
+        async function runAnalysis() {
             const detections = await faceapi.detectSingleFace(photoElement, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
             hideLoader();
 
@@ -1099,6 +1103,7 @@
                 emotionResult.textContent = "No face detected!";
             }
         }
+        
         
         async function generateWithGemini(mode, emotion) {
             // **FIX**: Inserted the user's Gemini API Key.
