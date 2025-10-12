@@ -241,29 +241,46 @@
             }
         }
 
-        /* Button hover effects */
+        /* Button hover effects with shine and smooth scaling */
+        .hero-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
         .hero-button:hover {
-            animation: buttonHover 0.3s ease-out forwards;
             transform: translateY(-2px) scale(1.05);
             box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
         }
 
-        @keyframes buttonHover {
-            to {
-                transform: translateY(-2px) scale(1.05);
-                box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+        .hero-button:hover::before {
+            animation: shine 0.6s ease-out;
+        }
+
+        .hero-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.6s ease-out;
+        }
+
+        @keyframes shine {
+            0% {
+                left: -100%;
+            }
+            100% {
+                left: 100%;
             }
         }
 
         /* Button click animation */
         .hero-button:active {
-            animation: buttonClick 0.1s ease-out forwards;
-        }
-
-        @keyframes buttonClick {
-            to {
-                transform: scale(0.95);
-            }
+            transform: translateY(-1px) scale(0.98);
+            transition: all 0.1s ease-out;
         }
 
         /* Floating background elements */
@@ -462,10 +479,10 @@
             position: absolute;
             inset: -15%;
             background:
-                radial-gradient(900px 600px at 15% 10%, rgba(99, 102, 241, 0.20), transparent 60%),
-                radial-gradient(900px 700px at 85% 15%, rgba(139, 92, 246, 0.20), transparent 60%),
-                radial-gradient(1000px 700px at 50% 90%, rgba(59, 130, 246, 0.14), transparent 60%),
-                radial-gradient(700px 500px at 75% 80%, rgba(236, 72, 153, 0.10), transparent 60%);
+                radial-gradient(900px 600px at 15% 10%, rgba(99, 101, 241, 0.137), transparent 60%),
+                radial-gradient(900px 700px at 85% 15%, rgba(138, 92, 246, 0.153), transparent 60%),
+                radial-gradient(1000px 700px at 50% 90%, rgba(59, 131, 246, 0.111), transparent 60%),
+                radial-gradient(700px 500px at 75% 80%, rgba(236, 72, 154, 0.078), transparent 60%);
             filter: blur(12px) saturate(110%);
             mix-blend-mode: screen;
             animation: beamsShift 18s ease-in-out infinite alternate;
@@ -475,8 +492,8 @@
             inset: 0;
             background: repeating-linear-gradient(
                 -35deg,
-                rgba(148, 163, 184, 0.08) 0px,
-                rgba(148, 163, 184, 0.08) 2px,
+                rgba(48, 51, 56, 0.295) 0px,
+                rgba(49, 52, 56, 0.36) 2px,
                 transparent 2px,
                 transparent 18px
             );
