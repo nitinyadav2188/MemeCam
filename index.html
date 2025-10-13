@@ -70,6 +70,30 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
+        /* Center elements when hidden */
+        .center-when-hidden {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+        }
+
+        /* Full width centering for main container */
+        .full-width-center {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Flex container for centered content */
+        .flex-center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -560,7 +584,7 @@
     <div id="app-container" class="hidden flex-grow w-full max-w-6xl mx-auto p-4 md:p-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Left Column: Camera and Meme Preview -->
-            <div class="flex flex-col items-center space-y-4">
+            <div id="meme-column" class="flex flex-col items-center space-y-4">
                 <div id="meme-container" class="relative w-full max-w-md bg-gray-800 rounded-lg overflow-hidden shadow-lg">
                     <div id="loader" class="hidden flex-col items-center justify-center bg-black bg-opacity-70 absolute inset-0 z-50">
                         <div class="spinner"></div>
@@ -966,6 +990,13 @@
                 appContainer.classList.add('fade-in');
             }, 500);
 
+            
+            // Center the meme container when controls are hidden
+            const appGrid = document.querySelector('#app-container > .grid');
+            if (appGrid) {
+                appGrid.classList.remove('grid-cols-1', 'lg:grid-cols-2');
+                appGrid.classList.add('grid-cols-1');
+            }
             await setupWebcam();
         }
 
@@ -1093,13 +1124,17 @@
             memeContainer.querySelectorAll('.sticker').forEach(s => s.remove());
         }
 
-        async function analyzeFace() {
+        function analyzeFace() {
             if (!capturedImage || !modelsLoaded) {
                 showNotification("Please capture a photo first.");
                 return;
             }
             showLoader('Analyzing your face...');
-            
+            // Use a timeout to allow the UI to update before the heavy task
+            setTimeout(runAnalysis, 100); 
+        }
+
+        async function runAnalysis() {
             const detections = await faceapi.detectSingleFace(photoElement, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
             hideLoader();
 
@@ -1110,12 +1145,22 @@
                 
                 controlsPanel.classList.remove('hidden');
                 controlsPanel.classList.add('fade-in');
+                
+                // Restore normal grid layout when controls are shown
+                const appGrid = document.querySelector('#app-container > .grid');
+                if (appGrid) {
+                    appGrid.classList.remove('grid-cols-1');
+                    appGrid.classList.add('grid-cols-1', 'lg:grid-cols-2');
+                    memeColumn.classList.remove('full-width-center');
+                }
+                
                 fetchAIContent(currentEmotion);
             } else {
                 showNotification("Could not detect a face. Please try again.");
                 emotionResult.textContent = "No face detected!";
             }
         }
+        
         
         async function generateWithGemini(mode, emotion) {
             // **FIX**: Inserted the user's Gemini API Key.
